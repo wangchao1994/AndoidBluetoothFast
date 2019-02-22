@@ -20,6 +20,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.Toolbar;
 import android.text.TextUtils;
+import android.text.method.BaseKeyListener;
 import android.util.Log;
 import android.view.View;
 import android.view.animation.Animation;
@@ -44,6 +45,8 @@ import com.clj.fastble.exception.BleException;
 import com.clj.fastble.scan.BleScanRuleConfig;
 import com.raisesail.andoid.rabluebar.adapter.DeviceAdapter;
 import com.raisesail.andoid.rabluebar.common.ObserverManager;
+import com.raisesail.andoid.rabluebar.name.BleAdvertisedData;
+import com.raisesail.andoid.rabluebar.name.BleUtil;
 import com.raisesail.andoid.rabluebar.operation.OperationActivity;
 
 import java.util.ArrayList;
@@ -63,17 +66,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Animation operatingAnim;
     private DeviceAdapter mDeviceAdapter;
     private ProgressDialog progressDialog;
+    private BleManager mBleManager;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         initView();
-        //初始化配置
-        BleManager.getInstance().init(getApplication());
-        BleManager.getInstance()
-                .enableLog(true)
-                .setReConnectCount(1, 5000)
-                .setOperateTimeout(5000);
+        mBleManager = BleManager.getInstance();
+        Log.d(TAG,"ble support->"+mBleManager.isSupportBle()+"   current ble status->"+mBleManager.isBlueEnable());
+        //5.0->暂用
+        if(mBleManager.isSupportBle() && !mBleManager.isBlueEnable()){
+            BleManager.getInstance().enableBluetooth();
+        }
     }
 
     private void initView(){
@@ -106,7 +111,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             public void onConnect(BleDevice bleDevice) {
                 if (!BleManager.getInstance().isConnected(bleDevice)) {
                     BleManager.getInstance().cancelScan();
-                    Log.d("wang_chao","connect---->"+bleDevice.getMac());
                     connect(bleDevice);
                 }
             }
@@ -276,15 +280,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 btn_scan.setText(getString(R.string.stop_scan));
             }
 
+
             @Override
             public void onLeScan(BleDevice bleDevice) {
                 super.onLeScan(bleDevice);
             }
-
             @Override
             public void onScanning(BleDevice bleDevice) {
-                Log.d("wang_chao","blu---getDevice-->"+bleDevice.getDevice());
-                Log.d("wang_chao","blu--getName--->"+bleDevice.getName());
+                Log.d("scan_able","main--mac->"+bleDevice.getDevice());
+                //if (bleDevice.getName() == null)return;
+                BleAdvertisedData mBleAdvertisedData = BleUtil.parseAdertisedData(bleDevice.getScanRecord());
+                String name = mBleAdvertisedData.getName();
+                Log.d("scan_able","main---------------------name->"+name);
                 mDeviceAdapter.addDevice(bleDevice);
                 mDeviceAdapter.notifyDataSetChanged();
             }
@@ -339,14 +346,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     /**
-     * 判断GPS是否打开
+     * 判断位置信息是否打开
      * @return
      */
     private boolean checkGPSIsOpen() {
         LocationManager locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
         if (locationManager == null)
             return false;
-        return locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER);
+        //GPS
+        boolean isGpsProvider = locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER);
+        //网络定位
+        boolean isNetWorkProvider = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+        return isGpsProvider || isNetWorkProvider;
     }
 
     @Override
